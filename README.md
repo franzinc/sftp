@@ -491,39 +491,36 @@ If you decide not to use a public/private key pair, you must use a
 password.  This is not recommended since the password will be
 clear-text in your code!
 
-;; example:
+    ;; run this once, with your login name:
+    (net.sftp.client::setup-defaults "<username>")
 
-;; run this once, with your login name:
+    ;; setup-defaults is provided as a convenience for testing and
+    ;; demonstration purposes and should be replaced with your own default
+    ;; setup function in your application
 
-(net.sftp.client::setup-defaults "<username>")
+    ;; next define a test callback function to pass to map-over-sftp-directory:
 
-;; setup-defaults is provided as a convenience for testing and
-;; demonstration purposes and should be replaced with your own default
-;; setup function in your application
+    (defun mapdir-test-fn1 (remote-pathname file-size file-mod-time &optional stream)
+      (print (list remote-pathname file-size file-mod-time stream)))
 
-;; next define a test callback function to pass to map-over-sftp-directory:
+    ;; execute this code at a lisp prompt replacing "gemini" with your
+    ;; server name:
 
-(defun mapdir-test-fn1 (remote-pathname file-size file-mod-time &optional stream)
-  (print (list remote-pathname file-size file-mod-time stream)))
+    (net.sftp.client:map-over-sftp-directory
+     #'mapdir-test-fn1 "<remote-host>" "." 
+     :include-directories t :pass-connection-stream t)
 
-;; execute this code at a lisp prompt replacing "gemini" with your
-;; server name:
+    ;; it should print a number of lists:
+    ;; ("/home/username/test" 534 3494044800 #<terminal-simple-stream  fd 9/8 @ #x101103a92>)
 
-(net.sftp.client:map-over-sftp-directory
- #'mapdir-test-fn1 "<remote-host>" "." 
- :include-directories t :pass-connection-stream t)
-
-;; it should print a number of lists:
-;; ("/home/username/test" 534 3494044800 #<terminal-simple-stream  fd 9/8 @ #x101103a92>)
-
-;; this is the printed representation of the arguments your callback
-;; function recieves:
-;; 1) remote-pathname (a string)
-;; 2) file-size-bytes (an integer number of bytes)
-;; 3) file-modification-date (a lisp universal time
-;; representing modification time to the granularity provided by psftp.)
-;; when you :include-directories t, you might get `nil' for the file size, 
-;; this means the remote-pathname is a directory
+    ;; this is the printed representation of the arguments your callback
+    ;; function recieves:
+    ;; 1) remote-pathname (a string)
+    ;; 2) file-size-bytes (an integer number of bytes)
+    ;; 3) file-modification-date (a lisp universal time
+    ;; representing modification time to the granularity provided by psftp.)
+    ;; when you :include-directories t, you might get `nil' for the file size, 
+    ;; this means the remote-pathname is a directory
 
 Notes
 -----
@@ -534,7 +531,8 @@ variable.
 Runs on Windows implementations of AllegroCL.
 
 if you don't have a %HOME%\.ssh\id_dsa.ppk then:
-(net.sftp.client::setup-defaults "<username>" :key-file "c:\\path\\to\\private-key.ppk")
+
+    (net.sftp.client::setup-defaults "<username>" :key-file "c:\\path\\to\\private-key.ppk")
 
 net.sftp.client:map-over-sftp-directory is different than
 net.ftp.client:map-over-ftp-directory in two major ways.  First, the
