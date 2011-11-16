@@ -4,7 +4,24 @@
   (require :util-string))
 
 (defpackage :net.sftp.client
-  (:use #:excl #:common-lisp))
+  (:use #:excl #:common-lisp)
+  (:export #:connect-to-sftp-server
+	   #:close-sftp-stream
+	   #:with-open-sftp-connection
+	   #:sftp-stream-pwd
+	   #:sftp-stream-cwd
+	   #:sftp-stream-get
+	   #:sftp-stream-put
+	   #:sftp-stream-map-over-directory
+	   #:sftp-get
+	   #:sftp-put
+	   #:map-over-sftp-directory
+	   #:*default-user*
+	   #:*default-password*
+	   #:*default-private-key*
+	   #:*sftp-debug*
+	   #:failed-connection
+	   #:file-exists-error))
 
 (in-package :net.sftp.client)
 
@@ -85,35 +102,51 @@ Store key in cache? (y/n) ")
   (with-stream-class (stream psftp)
     (getf (sm excl::plist psftp) :psftp-procid)))
 
-(defun manage-error-response (psftp &key (timeout 5)
+(defun manage-error-response (psftp &key (timeout 60) 
 					 (trust-new-host t)
-					 (verbose t))
-  (let ((stream psftp)
-	(error-stream (psftp-errout psftp)))
-    (mp:wait-for-input-available error-stream :timeout timeout)
-    (let ((char (read-char-no-hang error-stream nil nil)))
-      (if* (null char)
-	 then (return-from manage-error-response (values))
-	 else (let ((message (make-array 4096 :element-type 'character
-					 :adjustable t :fill-pointer 1)))
-		(setf (char message 0) char)
-		(loop
-		    do (mp:wait-for-input-available error-stream :timeout timeout)
-		       (setq char (read-char-no-hang error-stream nil nil))
-		       (if* (null char)
-			  then (if* trust-new-host
-				  then (let ((len (length message)))
-					 (if* (> len 27)
-					    then (if* (string= +store-key-in-cache-prompt+
-							       (subseq message (- len 27)))
-						    then (when (or *sftp-debug* verbose)
-							   (format (or *sftp-debug* t) message))
-							 (issue-psftp-command stream "y")
-							 (return-from manage-error-response (values))
-						    else (error "Unknown response: ~S" message))
-					    else (error "Unknown response: ~S" message)))
-				  else (error "Unknown response: ~S" message))
-			  else (vector-push-extend char message))))))))
+					 (verbose nil))
+  ;; timeout 60 is long enough to pass through a connection timeout error
+  ;; (but short enough to not to halt application)
+  (let* ((stream psftp)
+	 (error-stream (psftp-errout psftp))
+	 (input-ready-streams
+	  (mp:wait-for-input-available 
+	   (list error-stream stream)
+	   :whostate "Waiting for initial psftp.exe response"
+	   :timeout timeout)))
+    (if* (not (find error-stream input-ready-streams))
+       then (if* (not (find stream input-ready-streams))
+	       then (error 'failed-connection 
+			   "Timed out after ~A seconds waiting for psftp.exe response."
+			   timeout)
+	       else (return-from manage-error-response (values)))
+       else
+	    (let ((char (read-char-no-hang error-stream nil nil)))
+	      (if* (null char)
+		 then (return-from manage-error-response (values))
+		 else (let ((message (make-array 4096 :element-type 'character
+						 :adjustable t :fill-pointer 1)))
+			(setf (char message 0) char)
+			(loop
+			    do (mp:wait-for-input-available error-stream :timeout 1)
+			       (setq char (read-char-no-hang error-stream nil nil))
+			       (if* (null char)
+				  then (if* trust-new-host
+					  then (let ((len (length message)))
+						 (if* (> len 27)
+						    then (if* (string= +store-key-in-cache-prompt+
+								       (subseq message (- len 27)))
+							    then (when (or *sftp-debug* verbose)
+								   (format (or *sftp-debug* t) message))
+								 (issue-psftp-command stream "y")
+								 (return-from manage-error-response (values))
+							    else (error 'failed-connection "Unknown response: ~S" message))
+						    else (error 'failed-connection "Unknown response: ~S" message)))
+					  else (error 'failed-connection "Unknown response: ~S" message))
+				  else (vector-push-extend char message)))))))))
+
+(defun close-sftp-stream (sftp-stream)
+  (attempt-normal-psftp-shutdown sftp-stream :force t))
 
 (defun attempt-normal-psftp-shutdown (psftp &key (timeout 1)
 						 (force nil))
@@ -153,18 +186,20 @@ Store key in cache? (y/n) ")
 	   (terpri *sftp-debug*))))
 
 (defun wait-for-response (stream &key timeout)
-  "This function returns two values: results, which should be a list of strings
-and a boolean describing if end-of-file has been reached."
   (let ((line)
 	(char)
 	(results ()))
+    ;; todo: probably should make this function at least recognize
+    ;; and deal with "user@host password: " which is a common cause of hangs
     (macrolet ((next-char ()
 		 `(prog1 
 		      (if* timeout ;; probably shouldn't use timeout.
 			 then (mp:wait-for-input-available stream :timeout timeout)
-			      (setq char (read-char-no-hang stream nil nil))
-			      (unless char
-				(error "PSFTP not responding."))
+			      (prog1 (setq char (read-char-no-hang stream nil nil))
+				(unless char
+				  (error 'failed-connection
+					 "psftp.exe not responding:~{~%~A~}~%~A"
+					 (nreverse results) line)))
 			 else (setq char (read-char stream nil nil)))
 		    (unless char
 		      (when line
@@ -264,10 +299,10 @@ and a boolean describing if end-of-file has been reached."
 					 (private-key *default-private-key*)
 					 enable-compression-p
 					 trust-new-host
-					 (error-timeout 5)
+					 (error-timeout 60)
 			       &aux (*sftp-debug* debug))
   (declare (ignore mode))
-  (let ((command (format nil "psftp.exe ~{~A~} ~{~A~} ~{-i ~A~} ~{-P ~A~} ~{-pw ~A~} ~{~A@~}~A"
+  (let ((command (format nil "psftp.exe~{ ~A~}~{ ~A~}~{ -i ~A~}~{ -P ~A~}~{ -pw ~A~} ~{~A@~}~A"
 			 (when enable-compression-p
 			   (list "-C"))
 			 (when verbose
@@ -320,7 +355,7 @@ and a boolean describing if end-of-file has been reached."
 			       :trust-new-host trust-new-host)
 	
 	
-	(let ((response (wait-for-response stream)))
+	(let ((response (wait-for-response stream :timeout 1)))
 	  (if* response
 	     then stream
 	     else (error 'failed-connection
@@ -338,6 +373,7 @@ and a boolean describing if end-of-file has been reached."
 					   (password *default-password*)
 					   (private-key *default-private-key*)
 					   trust-new-host
+					   enable-compression-p
 					   mode
 					   debug
 					   verbose)
@@ -355,10 +391,11 @@ and a boolean describing if end-of-file has been reached."
 				     :mode ,mode
 				     :debug ,debug
 				     :verbose ,verbose
+				     :enable-compression-p ,enable-compression-p
 				     :trust-new-host ,trust-new-host))
 	   ,@body)
        (when ,var
-	 (attempt-normal-psftp-shutdown ,var :force t)))))
+	 (close-sftp-stream ,var)))))
 
   
   
