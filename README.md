@@ -2,13 +2,14 @@ The AllegroCL Secure FTP (SFTP) client module for Windows
 
 This document contains the following sections:
 
-1) Introduction
-2) Setup
-3) The AllegroCL SFTP Client API
-4) Examples
-5) Notes
+1. Introduction
+2. Setup
+3. The AllegroCL SFTP Client API
+4. Examples
+5. Notes
 
-1. Introduction 
+1. Introduction
+---------------
 
 The AllegroCL SFTP client module can be used to communicate with an
 SFTP server.  This module is a wrapper around the program PSFTP which
@@ -23,6 +24,7 @@ The AllegroCL SFTP client module can do the following:
 - Access the file modification time and size of remote files
 
 2. Setup
+--------
 
 Loading the SFTP module
 
@@ -34,6 +36,7 @@ Symbols naming functionality in the sftp module are in the
 net.sftp.client package.
 
 3. The AllegroCL SFTP Client API
+--------------------------------
 
 The following operators and variables are supported.
 
@@ -455,9 +458,8 @@ Package: net.sftp.client
 This is the condition signalled when attempting to get a file which
 already exists on the local filesystem.
 
----------------------
-
 4. Examples
+-----------
 
 Prerequisite:
 
@@ -523,6 +525,7 @@ clear-text in your code!
 ;; this means the remote-pathname is a directory
 
 5. Notes
+--------
 
 psftp.exe must be located in a directory on the %PATH% environment
 variable.
