@@ -27,7 +27,7 @@
 
 
 (defvar *default-user*)
-(defvar *default-password*)
+(defvar *default-password* nil)
 (defvar *default-private-key*)
 (defvar *sftp-debug* nil)
 
