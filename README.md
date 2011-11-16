@@ -426,6 +426,7 @@ and private-key are the preferred methods of authentication when using
 this SFTP module.  *default-private-key* is initially unbound.  The
 value should be bound to the symbol before using the module functions
 (or :private-key should be explicitly given to the functions).
+
 ---------------------
 
 *sftp-debug*
