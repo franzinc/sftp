@@ -8,8 +8,8 @@ This document contains the following sections:
 4. Examples
 5. Notes
 
-1. Introduction
----------------
+Introduction
+------------
 
 The AllegroCL SFTP client module can be used to communicate with an
 SFTP server.  This module is a wrapper around the program PSFTP which
@@ -23,8 +23,8 @@ The AllegroCL SFTP client module can do the following:
 - Walk remote file structures
 - Access the file modification time and size of remote files
 
-2. Setup
---------
+Setup
+-----
 
 Loading the SFTP module
 
@@ -35,8 +35,8 @@ Load the SFTP module by compiling and loading psftp.cl:
 Symbols naming functionality in the sftp module are in the
 net.sftp.client package.
 
-3. The AllegroCL SFTP Client API
---------------------------------
+The AllegroCL SFTP Client API
+-----------------------------
 
 The following operators and variables are supported.
 
@@ -458,8 +458,8 @@ Package: net.sftp.client
 This is the condition signalled when attempting to get a file which
 already exists on the local filesystem.
 
-4. Examples
------------
+Examples
+--------
 
 Prerequisite:
 
@@ -524,8 +524,8 @@ clear-text in your code!
 ;; when you :include-directories t, you might get `nil' for the file size, 
 ;; this means the remote-pathname is a directory
 
-5. Notes
---------
+Notes
+-----
 
 psftp.exe must be located in a directory on the %PATH% environment
 variable.
